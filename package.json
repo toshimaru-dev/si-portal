@@ -1,0 +1,41 @@
+{
+  "name": "work-portal",
+  "displayName": "仕事ポータル",
+  "description": "案件管理・月次処理・目標管理を扱う個人用の仕事ポータル",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "workPortal.open",
+        "title": "仕事ポータルを開く"
+      }
+    ],
+    "configuration": {
+      "title": "仕事ポータル",
+      "properties": {
+        "workPortal.dataDir": {
+          "type": "string",
+          "default": ".work-portal",
+          "description": "案件・工数・目標データを保存するフォルダ（ワークスペースルートからの相対パス）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  }
+}
