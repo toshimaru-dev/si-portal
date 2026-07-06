@@ -13,7 +13,17 @@ VSCode の WebView 拡張として動く、個人用の仕事ポータル。
 
 データはワークスペース直下の `.work-portal/` フォルダに Markdown / CSV / JSON として保存される（設定 `workPortal.dataDir` で変更可）。
 
-## セットアップ
+## インストール
+
+[GitHub Releases](https://github.com/toshimaru-dev/si-portal/releases) から最新の `work-portal-x.y.z.vsix` をダウンロードし、以下のいずれかの方法で VSCode にインストールする。
+
+```bash
+code --install-extension work-portal-x.y.z.vsix
+```
+
+または VSCode の拡張機能ビュー右上「...」メニューから「VSIXからのインストール...」を選択し、ダウンロードした `.vsix` ファイルを指定する。
+
+## セットアップ（開発用）
 
 ```bash
 npm install
