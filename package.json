@@ -3,11 +3,18 @@
   "displayName": "仕事ポータル",
   "description": "案件管理・月次処理・目標管理を扱う個人用の仕事ポータル",
   "version": "0.0.1",
+  "publisher": "toshimaru-dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/toshimaru-dev/si-portal.git"
+  },
   "private": true,
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -35,6 +42,7 @@
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.23.0",
     "typescript": "^5.5.0"
   }

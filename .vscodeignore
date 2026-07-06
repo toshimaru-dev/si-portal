@@ -1,0 +1,14 @@
+.vscode/**
+.work-portal/**
+CLAUDE.md
+.gitignore
+.vscodeignore
+src/**
+docs/**
+samples/**
+esbuild.js
+tsconfig.json
+package-lock.json
+**/*.ts
+**/*.map
+.git/**
