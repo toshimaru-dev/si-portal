@@ -397,26 +397,74 @@ body {
   color: var(--vscode-foreground);
 }
 
-.kanban-project-id-input {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+.project-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.project-info-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-label {
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 2px 5px;
-  width: 90px;
 }
 
-.kanban-project-id-input:hover {
-  border-color: var(--vscode-widget-border, #3a3a3a);
-}
-
-.kanban-project-id-input:focus {
-  outline: none;
-  color: var(--vscode-foreground);
+.info-input,
+.info-textarea {
   background: var(--vscode-input-background);
-  border-color: var(--vscode-focusBorder, #4a9eff);
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, #3a3a3a));
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.info-textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.info-field:has(.info-textarea),
+.info-field:has(.link-list) {
+  grid-column: 1 / -1;
+}
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--vscode-panel-border, #2d2d30);
+}
+
+.link-anchor {
+  font-size: 12px;
+  color: var(--vscode-textLink-foreground, #4a9eff);
+  text-decoration: none;
+}
+
+.link-anchor:hover {
+  text-decoration: underline;
 }
 
 .kanban-grid {

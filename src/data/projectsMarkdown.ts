@@ -36,6 +36,7 @@ export function parseProjectsMarkdown(text: string): ParseOutcome {
 
   let currentProject: Project | undefined;
   let currentPhase: Phase | undefined;
+  let overviewLines: string[] = [];
 
   const pushPhase = () => {
     if (currentProject && currentPhase) {
@@ -46,9 +47,11 @@ export function parseProjectsMarkdown(text: string): ParseOutcome {
   const pushProject = () => {
     pushPhase();
     if (currentProject) {
+      currentProject.overview = overviewLines.join('\n');
       projects.push(currentProject);
     }
     currentProject = undefined;
+    overviewLines = [];
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -65,9 +68,12 @@ export function parseProjectsMarkdown(text: string): ParseOutcome {
       }
       currentProject = {
         id: projectId,
+        code: '',
         name: rest.trim(),
         client: '',
         status: 'active',
+        overview: '',
+        links: [],
         phases: [],
         createdAt: '',
         updatedAt: '',
@@ -136,12 +142,21 @@ export function parseProjectsMarkdown(text: string): ParseOutcome {
     if (metaLine && currentProject) {
       const key = metaLine[1];
       const value = metaLine[2].trim();
-      if (key === 'client') currentProject.client = value;
+      if (key === 'code') currentProject.code = value;
+      else if (key === 'client') currentProject.client = value;
       else if (key === 'status' && PROJECT_STATUSES.includes(value as ProjectStatus)) {
         currentProject.status = value as ProjectStatus;
       } else if (key === 'createdAt') currentProject.createdAt = value;
       else if (key === 'updatedAt') currentProject.updatedAt = value;
+      else if (key === 'link') {
+        const [label, url] = value.split('|').map((s) => s.trim());
+        if (label && url) currentProject.links.push({ label, url });
+      }
       continue;
+    }
+
+    if (currentProject && !currentPhase && currentProject.phases.length === 0 && line.trim() !== '') {
+      overviewLines.push(line.trim());
     }
   }
   pushProject();
@@ -154,11 +169,19 @@ export function serializeProjectsMarkdown(data: ProjectsFile): string {
 
   for (const project of data.projects) {
     parts.push(`# ${project.name} {#${project.id}}`);
+    parts.push(`- code: ${project.code}`);
     parts.push(`- client: ${project.client}`);
     parts.push(`- status: ${project.status}`);
     parts.push(`- createdAt: ${project.createdAt}`);
     parts.push(`- updatedAt: ${project.updatedAt}`);
+    for (const link of project.links) {
+      parts.push(`- link: ${link.label}|${link.url}`);
+    }
     parts.push('');
+    if (project.overview) {
+      parts.push(project.overview);
+      parts.push('');
+    }
 
     for (const phase of project.phases) {
       parts.push(`## ${phase.name} (${phase.status}) {#${phase.id}}`);

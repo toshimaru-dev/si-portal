@@ -2,7 +2,7 @@
   "name": "work-portal",
   "displayName": "仕事ポータル",
   "description": "案件管理・月次処理・目標管理を扱う個人用の仕事ポータル",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "toshimaru-dev",
   "repository": {
     "type": "git",

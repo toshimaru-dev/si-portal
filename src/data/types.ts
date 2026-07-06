@@ -16,11 +16,19 @@ export interface Phase {
   tasks: Task[];
 }
 
+export interface ProjectLink {
+  label: string;
+  url: string;
+}
+
 export interface Project {
   id: string;
+  code: string;
   name: string;
   client: string;
   status: ProjectStatus;
+  overview: string;
+  links: ProjectLink[];
   phases: Phase[];
   createdAt: string;
   updatedAt: string;

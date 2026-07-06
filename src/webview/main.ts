@@ -481,7 +481,10 @@ function renderProjectsScreen(): HTMLElement {
 
   const selected = filtered.find((p) => p.id === state.selectedProjectId);
   if (selected) {
-    layout.appendChild(renderKanban(selected));
+    const detail = el('div', 'project-detail');
+    detail.appendChild(renderProjectInfoCard(selected));
+    detail.appendChild(renderKanban(selected));
+    layout.appendChild(detail);
   } else {
     layout.appendChild(renderPlaceholder('該当する案件がありません', 'フィルタ条件を変更してください。'));
   }
@@ -640,30 +643,118 @@ function renderAddProjectForm(): HTMLElement {
   return form;
 }
 
+function renderProjectInfoCard(project: Project): HTMLElement {
+  const card = el('div', 'card project-info-card');
+
+  const nameField = el('div', 'info-field');
+  nameField.appendChild(el('label', 'info-label', '案件名'));
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'info-input';
+  nameInput.value = project.name;
+  nameInput.addEventListener('change', () => {
+    const value = nameInput.value.trim();
+    if (!value) {
+      nameInput.value = project.name;
+      return;
+    }
+    updateProjectField(project.id, { name: value });
+  });
+  nameField.appendChild(nameInput);
+  card.appendChild(nameField);
+
+  const clientField = el('div', 'info-field');
+  clientField.appendChild(el('label', 'info-label', 'クライアント'));
+  const clientInput = document.createElement('input');
+  clientInput.type = 'text';
+  clientInput.className = 'info-input';
+  clientInput.value = project.client;
+  clientInput.addEventListener('change', () => {
+    updateProjectField(project.id, { client: clientInput.value.trim() });
+  });
+  clientField.appendChild(clientInput);
+  card.appendChild(clientField);
+
+  const codeField = el('div', 'info-field');
+  codeField.appendChild(el('label', 'info-label', 'プロジェクトコード'));
+  const codeInput = document.createElement('input');
+  codeInput.type = 'text';
+  codeInput.className = 'info-input mono';
+  codeInput.value = project.code;
+  codeInput.title = '社内管理用の表示コード（システム内部の管理IDとは別に自由編集できます）';
+  codeInput.addEventListener('change', () => {
+    updateProjectField(project.id, { code: codeInput.value.trim() });
+  });
+  codeField.appendChild(codeInput);
+  card.appendChild(codeField);
+
+  const overviewField = el('div', 'info-field');
+  overviewField.appendChild(el('label', 'info-label', '概要'));
+  const overviewTextarea = document.createElement('textarea');
+  overviewTextarea.className = 'info-textarea';
+  overviewTextarea.rows = 3;
+  overviewTextarea.placeholder = '案件の概要・背景など';
+  overviewTextarea.value = project.overview;
+  overviewTextarea.addEventListener('change', () => {
+    updateProjectField(project.id, { overview: overviewTextarea.value.trim() });
+  });
+  overviewField.appendChild(overviewTextarea);
+  card.appendChild(overviewField);
+
+  const linksField = el('div', 'info-field');
+  linksField.appendChild(el('label', 'info-label', '関連リンク'));
+  const linkList = el('div', 'link-list');
+  project.links.forEach((link, index) => {
+    const row = el('div', 'link-row');
+    const anchor = document.createElement('a');
+    anchor.href = link.url;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.textContent = link.label;
+    anchor.className = 'link-anchor';
+    row.appendChild(anchor);
+    const deleteIcon = el('button', 'delete-icon', '×');
+    deleteIcon.title = 'このリンクを削除';
+    deleteIcon.addEventListener('click', () => removeProjectLink(project.id, index));
+    row.appendChild(deleteIcon);
+    linkList.appendChild(row);
+  });
+  linksField.appendChild(linkList);
+
+  const linkForm = document.createElement('form');
+  linkForm.className = 'inline-form';
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text';
+  labelInput.placeholder = 'ラベル';
+  labelInput.required = true;
+  const urlInput = document.createElement('input');
+  urlInput.type = 'url';
+  urlInput.placeholder = 'https://...';
+  urlInput.required = true;
+  const addLinkButton = document.createElement('button');
+  addLinkButton.type = 'submit';
+  addLinkButton.className = 'button-secondary';
+  addLinkButton.textContent = '+ 追加';
+  linkForm.appendChild(labelInput);
+  linkForm.appendChild(urlInput);
+  linkForm.appendChild(addLinkButton);
+  linkForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const label = labelInput.value.trim();
+    const url = urlInput.value.trim();
+    if (!label || !url) return;
+    addProjectLink(project.id, label, url);
+  });
+  linksField.appendChild(linkForm);
+  card.appendChild(linksField);
+
+  return card;
+}
+
 function renderKanban(project: Project): HTMLElement {
   const panel = el('div', 'kanban-panel');
   const header = el('div', 'kanban-header');
   header.appendChild(el('span', 'kanban-project-name', project.name));
-
-  const idInput = document.createElement('input');
-  idInput.type = 'text';
-  idInput.className = 'kanban-project-id-input mono';
-  idInput.value = project.id;
-  idInput.title = 'プロジェクトコード（hours.csv 等から参照されるID）';
-  idInput.addEventListener('change', () => {
-    const trimmed = idInput.value.trim();
-    if (!trimmed || trimmed === project.id) {
-      idInput.value = project.id;
-      return;
-    }
-    const collision = (state.projects?.projects ?? []).some((p) => p.id === trimmed);
-    if (collision) {
-      idInput.value = project.id;
-      return;
-    }
-    updateProjectId(project.id, trimmed);
-  });
-  header.appendChild(idInput);
   panel.appendChild(header);
 
   const grid = el('div', 'kanban-grid');
@@ -890,14 +981,33 @@ function saveProjects(next: ProjectsFile): void {
   render();
 }
 
-function updateProjectId(oldId: string, newId: string): void {
+function updateProjectField(
+  projectId: string,
+  patch: Partial<Pick<Project, 'name' | 'client' | 'code' | 'overview'>>,
+): void {
   if (!state.projects) return;
   const now = new Date().toISOString();
-  const nextProjects = state.projects.projects.map((p) => (p.id === oldId ? { ...p, id: newId, updatedAt: now } : p));
-  if (state.selectedProjectId === oldId) {
-    state.selectedProjectId = newId;
-    persistUiState();
-  }
+  const nextProjects = state.projects.projects.map((p) =>
+    p.id === projectId ? { ...p, ...patch, updatedAt: now } : p,
+  );
+  saveProjects({ projects: nextProjects });
+}
+
+function addProjectLink(projectId: string, label: string, url: string): void {
+  if (!state.projects) return;
+  const now = new Date().toISOString();
+  const nextProjects = state.projects.projects.map((p) =>
+    p.id === projectId ? { ...p, links: [...p.links, { label, url }], updatedAt: now } : p,
+  );
+  saveProjects({ projects: nextProjects });
+}
+
+function removeProjectLink(projectId: string, index: number): void {
+  if (!state.projects) return;
+  const now = new Date().toISOString();
+  const nextProjects = state.projects.projects.map((p) =>
+    p.id === projectId ? { ...p, links: p.links.filter((_, i) => i !== index), updatedAt: now } : p,
+  );
   saveProjects({ projects: nextProjects });
 }
 
@@ -906,9 +1016,12 @@ function addProject(name: string, client: string, status: ProjectStatus): void {
   const now = new Date().toISOString();
   const newProject: Project = {
     id: genId('prj-'),
+    code: '',
     name,
     client,
     status,
+    overview: '',
+    links: [],
     phases: DEFAULT_PHASE_NAMES.map((n) => ({ id: genId('ph-'), name: n, status: 'todo', tasks: [] })),
     createdAt: now,
     updatedAt: now,
