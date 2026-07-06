@@ -1,5 +1,6 @@
 .vscode/**
 .work-portal/**
+.claude/**
 CLAUDE.md
 .gitignore
 .vscodeignore
