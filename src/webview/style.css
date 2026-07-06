@@ -733,7 +733,11 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
+  max-width: 220px;
+}
+
+.breakdown-client {
+  color: var(--vscode-descriptionForeground);
 }
 
 .breakdown-hours {

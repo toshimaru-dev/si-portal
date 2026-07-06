@@ -184,13 +184,21 @@ function goToTab(tab: TabId): void {
   render();
 }
 
-function renderBreakdownList(items: { name: string; hours: number }[]): HTMLElement {
+function renderBreakdownList(
+  items: { name: string; client: string; hours: number }[],
+  options: { showClient?: boolean } = {},
+): HTMLElement {
   const wrap = el('div');
   const maxHours = Math.max(...items.map((i) => i.hours), 0.0001);
   items.forEach((item, index) => {
     const row = el('div', 'breakdown-row');
     const labelRow = el('div', 'breakdown-label-row');
-    labelRow.appendChild(el('span', 'breakdown-name', item.name));
+    const nameCell = el('span', 'breakdown-name');
+    nameCell.appendChild(document.createTextNode(item.name));
+    if (options.showClient && item.client) {
+      nameCell.appendChild(el('span', 'breakdown-client', ` ・ ${item.client}`));
+    }
+    labelRow.appendChild(nameCell);
     labelRow.appendChild(el('span', 'breakdown-hours mono', `${item.hours.toFixed(1)}h`));
     row.appendChild(labelRow);
 
@@ -1104,14 +1112,15 @@ function deleteTask(projectId: string, phaseId: string, taskId: string): void {
 
 // ===================== 月次処理 =====================
 
-function aggregateByProject(rows: HoursRow[]): { name: string; hours: number }[] {
-  const byProject = new Map<string, { name: string; hours: number }>();
+function aggregateByProject(rows: HoursRow[]): { name: string; client: string; hours: number }[] {
+  const byProject = new Map<string, { name: string; client: string; hours: number }>();
   for (const row of rows) {
     const existing = byProject.get(row.projectId);
     if (existing) {
       existing.hours += row.hours;
     } else {
-      byProject.set(row.projectId, { name: row.projectName, hours: row.hours });
+      const client = (state.projects?.projects ?? []).find((p) => p.id === row.projectId)?.client ?? '';
+      byProject.set(row.projectId, { name: row.projectName, client, hours: row.hours });
     }
   }
   return [...byProject.values()].sort((a, b) => b.hours - a.hours);
@@ -1208,7 +1217,7 @@ function renderMonthlyNormalView(): HTMLElement {
   if (rows.length === 0) {
     summary.appendChild(el('div', 'empty-state', 'データがありません。'));
   } else {
-    summary.appendChild(renderBreakdownList(aggregateByProject(rows)));
+    summary.appendChild(renderBreakdownList(aggregateByProject(rows), { showClient: true }));
   }
   layout.appendChild(summary);
 
