@@ -23,6 +23,24 @@
         "title": "仕事ポータルを開く"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "workPortal",
+          "title": "仕事ポータル",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "workPortal": [
+        {
+          "id": "workPortal.sidebar",
+          "name": "仕事ポータル",
+          "type": "webview"
+        }
+      ]
+    },
     "configuration": {
       "title": "仕事ポータル",
       "properties": {
