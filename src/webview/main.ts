@@ -49,6 +49,7 @@ interface State extends UiState {
   importStep: 0 | 1 | 2 | 3;
   importPreview: ImportResult | undefined;
   learnFlags: Record<string, boolean>;
+  clientDraft: Record<string, string>;
   showAddProjectForm: boolean;
   showAddPhaseForm: boolean;
   addTaskFormPhaseId: string | undefined;
@@ -76,6 +77,7 @@ const state: State = {
   importStep: 0,
   importPreview: undefined,
   learnFlags: {},
+  clientDraft: {},
   showAddProjectForm: false,
   showAddPhaseForm: false,
   addTaskFormPhaseId: undefined,
@@ -1006,6 +1008,23 @@ function projectOptions(): Project[] {
   return (state.projects?.projects ?? []).filter((p) => p.status !== 'closed');
 }
 
+function distinctClients(): string[] {
+  const set = new Set<string>();
+  for (const p of projectOptions()) {
+    const client = p.client.trim();
+    if (client) set.add(client);
+  }
+  return [...set];
+}
+
+function bracketClientGuess(subject: string): string | null {
+  const match = subject.match(/\[([^\]]+)\]/);
+  if (!match) return null;
+  const bracketText = match[1].trim();
+  if (!bracketText) return null;
+  return distinctClients().includes(bracketText) ? bracketText : null;
+}
+
 function renderMonthlyScreen(): HTMLElement {
   const wrap = el('div');
   const header = el('div', 'page-header');
@@ -1251,6 +1270,7 @@ function closeImport(): void {
   state.importStep = 0;
   state.importPreview = undefined;
   state.learnFlags = {};
+  state.clientDraft = {};
   state.showManualForm = false;
   render();
 }
@@ -1332,7 +1352,7 @@ function renderImportPreview(preview: ImportResult): HTMLElement {
   const unassignedCount = preview.unassigned.length;
   const badgeClass = unassignedCount > 0 ? 'unassigned-badge-warn' : 'unassigned-badge-ok';
   headerRow.appendChild(el('span', `unassigned-badge mono ${badgeClass}`, `未割当 ${unassignedCount}件`));
-  headerRow.appendChild(el('span', undefined, '未割当の行は案件ボタンで割り当ててください。'));
+  headerRow.appendChild(el('span', undefined, '未割当の行はクライアント→案件の順にプルダウンで割り当ててください。'));
   wrap.appendChild(headerRow);
 
   const table = el('div', 'preview-table');
@@ -1340,7 +1360,9 @@ function renderImportPreview(preview: ImportResult): HTMLElement {
   tableHeader.appendChild(el('span', undefined, '件名'));
   tableHeader.appendChild(el('span', undefined, '日時'));
   tableHeader.appendChild(el('span', 'cell-right', '工数'));
-  tableHeader.appendChild(el('span', undefined, '割当先案件'));
+  tableHeader.appendChild(el('span', undefined, 'クライアント'));
+  tableHeader.appendChild(el('span', undefined, '案件'));
+  tableHeader.appendChild(el('span', undefined, '今後'));
   table.appendChild(tableHeader);
 
   const allEvents = [...preview.assigned, ...preview.unassigned];
@@ -1382,50 +1404,92 @@ function renderPreviewRow(event: ImportPreviewEvent): HTMLElement {
   row.appendChild(el('span', 'mono', event.datetimeLabel));
   row.appendChild(el('span', 'mono cell-right', `${event.hours.toFixed(1)}h`));
 
-  const assignCell = el('div');
-  if (!isUnassigned) {
-    const projectName =
-      (state.projects?.projects ?? []).find((p) => p.id === event.projectId)?.name ?? event.projectId ?? '';
-    const wrap = el('div', 'preview-assigned');
-    wrap.appendChild(el('span', 'preview-assigned-name', projectName));
-    if (event.auto) {
-      wrap.appendChild(el('span', 'auto-tag', '自動'));
-    }
-    assignCell.appendChild(wrap);
-  } else {
-    const optionsWrap = el('div', 'assign-options');
-    const buttons = el('div', 'assign-buttons');
-    for (const project of projectOptions()) {
-      const button = el('button', 'assign-button', project.name);
-      button.title = project.name;
-      button.addEventListener('click', () => assignPreviewEvent(event.key, project.id));
-      buttons.appendChild(button);
-    }
-    optionsWrap.appendChild(buttons);
+  const currentProject = event.projectId ? projectOptions().find((p) => p.id === event.projectId) : undefined;
+  const selectedClient =
+    state.clientDraft[event.key] ?? currentProject?.client ?? bracketClientGuess(event.subject) ?? '';
 
-    const label = document.createElement('label');
-    label.className = 'learn-checkbox-label';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = !!state.learnFlags[event.key];
-    checkbox.addEventListener('change', () => {
-      state.learnFlags[event.key] = checkbox.checked;
-    });
-    label.appendChild(checkbox);
-    label.appendChild(document.createTextNode('今後この件名をこの案件へ'));
-    optionsWrap.appendChild(label);
-
-    assignCell.appendChild(optionsWrap);
+  const clientSelect = document.createElement('select');
+  clientSelect.className = 'preview-select';
+  const clientPlaceholder = document.createElement('option');
+  clientPlaceholder.value = '';
+  clientPlaceholder.textContent = '選択してください';
+  clientSelect.appendChild(clientPlaceholder);
+  for (const client of distinctClients()) {
+    const option = document.createElement('option');
+    option.value = client;
+    option.textContent = client;
+    clientSelect.appendChild(option);
   }
+  clientSelect.value = selectedClient;
+  clientSelect.addEventListener('change', () => {
+    state.clientDraft[event.key] = clientSelect.value;
+    if (event.projectId && currentProject && currentProject.client !== clientSelect.value) {
+      unassignPreviewEvent(event.key);
+    } else {
+      render();
+    }
+  });
+  row.appendChild(clientSelect);
+
+  const assignCell = el('div', 'assign-options');
+  const projectSelect = document.createElement('select');
+  projectSelect.className = 'preview-select';
+  const projectPlaceholder = document.createElement('option');
+  projectPlaceholder.value = '';
+  projectPlaceholder.textContent = '選択してください';
+  projectSelect.appendChild(projectPlaceholder);
+  const clientProjects = projectOptions().filter((p) => p.client.trim() === selectedClient);
+  for (const p of clientProjects) {
+    const option = document.createElement('option');
+    option.value = p.id;
+    option.textContent = p.name;
+    projectSelect.appendChild(option);
+  }
+  projectSelect.value = event.projectId && clientProjects.some((p) => p.id === event.projectId) ? event.projectId : '';
+  projectSelect.disabled = !selectedClient;
+  projectSelect.addEventListener('change', () => {
+    if (projectSelect.value) {
+      assignPreviewEvent(event.key, projectSelect.value);
+    } else {
+      unassignPreviewEvent(event.key);
+    }
+  });
+  assignCell.appendChild(projectSelect);
+
+  if (event.auto) {
+    assignCell.appendChild(el('span', 'auto-tag', '自動'));
+  }
+
   row.appendChild(assignCell);
+
+  const learnCell = el('div', 'learn-cell');
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.title = '今後この件名をこの案件へ割り当てる';
+  checkbox.checked = !!state.learnFlags[event.key];
+  checkbox.addEventListener('change', () => {
+    state.learnFlags[event.key] = checkbox.checked;
+  });
+  learnCell.appendChild(checkbox);
+  row.appendChild(learnCell);
+
   return row;
+}
+
+function findPreviewEvent(eventKey: string): { list: 'assigned' | 'unassigned'; index: number } | undefined {
+  if (!state.importPreview) return undefined;
+  const assignedIdx = state.importPreview.assigned.findIndex((e) => e.key === eventKey);
+  if (assignedIdx !== -1) return { list: 'assigned', index: assignedIdx };
+  const unassignedIdx = state.importPreview.unassigned.findIndex((e) => e.key === eventKey);
+  if (unassignedIdx !== -1) return { list: 'unassigned', index: unassignedIdx };
+  return undefined;
 }
 
 function assignPreviewEvent(eventKey: string, projectId: string): void {
   if (!state.importPreview) return;
-  const idx = state.importPreview.unassigned.findIndex((e) => e.key === eventKey);
-  if (idx === -1) return;
-  const [event] = state.importPreview.unassigned.splice(idx, 1);
+  const found = findPreviewEvent(eventKey);
+  if (!found) return;
+  const [event] = state.importPreview[found.list].splice(found.index, 1);
   const updated: ImportPreviewEvent = { ...event, projectId, auto: false };
   state.importPreview.assigned.push(updated);
 
@@ -1436,6 +1500,16 @@ function assignPreviewEvent(eventKey: string, projectId: string): void {
       payload: { eventKey, subject: event.subject, projectId, addRule: true },
     });
   }
+  render();
+}
+
+function unassignPreviewEvent(eventKey: string): void {
+  if (!state.importPreview) return;
+  const found = findPreviewEvent(eventKey);
+  if (!found || found.list === 'unassigned') return;
+  const [event] = state.importPreview.assigned.splice(found.index, 1);
+  const updated: ImportPreviewEvent = { ...event, projectId: null, auto: false };
+  state.importPreview.unassigned.push(updated);
   render();
 }
 
@@ -1700,6 +1774,7 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     state.importPreview = message.payload;
     state.importStep = 2;
     state.learnFlags = {};
+    state.clientDraft = {};
     render();
   } else if (message.type === 'fileChanged') {
     requestData(message.domain);

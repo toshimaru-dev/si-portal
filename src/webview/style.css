@@ -865,7 +865,7 @@ body {
 
 .preview-table-header {
   display: grid;
-  grid-template-columns: 1fr 130px 70px 220px;
+  grid-template-columns: 1fr 130px 70px 140px 220px 50px;
   padding: 10px 14px;
   background: var(--vscode-editor-background);
   border-bottom: 1px solid var(--vscode-widget-border, #333);
@@ -875,7 +875,7 @@ body {
 
 .preview-row {
   display: grid;
-  grid-template-columns: 1fr 130px 70px 220px;
+  grid-template-columns: 1fr 130px 70px 140px 220px 50px;
   padding: 11px 14px;
   border-bottom: 1px solid var(--vscode-panel-border, #2d2d30);
   align-items: center;
@@ -893,15 +893,15 @@ body {
   text-overflow: ellipsis;
 }
 
-.preview-assigned {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.preview-assigned-name {
-  font-size: 12px;
-  color: var(--vscode-charts-green, #5ec48a);
+.preview-select {
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, #3a3a3a));
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  width: 100%;
 }
 
 .auto-tag {
@@ -918,30 +918,10 @@ body {
   gap: 5px;
 }
 
-.assign-buttons {
-  display: flex;
-  gap: 3px;
-  flex-wrap: wrap;
-}
-
-.assign-button {
-  background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-widget-border, #4a4a4a);
-  color: var(--vscode-foreground);
-  font-size: 10px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.learn-checkbox-label {
+.learn-cell {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  color: var(--vscode-descriptionForeground);
-  cursor: pointer;
+  justify-content: center;
 }
 
 .import-footer {
@@ -1335,6 +1315,6 @@ body {
 
   .preview-table-header,
   .preview-row {
-    min-width: 480px;
+    min-width: 670px;
   }
 }
