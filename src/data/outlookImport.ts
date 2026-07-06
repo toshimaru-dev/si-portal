@@ -8,6 +8,7 @@ export interface ImportPreviewEvent {
   hours: number;
   projectId: string | null;
   auto: boolean;
+  excluded: boolean;
 }
 
 export interface ImportResult {
@@ -121,6 +122,7 @@ export function parseOutlookCsv(csvText: string, mapping: HoursMapping): ImportR
       hours: roundHours(rawHours),
       projectId,
       auto: projectId !== null,
+      excluded: false,
     };
     if (projectId) {
       assigned.push(event);

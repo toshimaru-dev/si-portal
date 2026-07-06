@@ -1349,10 +1349,10 @@ function loadCsvFile(file: File): void {
 function renderImportPreview(preview: ImportResult): HTMLElement {
   const wrap = el('div');
   const headerRow = el('div', 'preview-header');
-  const unassignedCount = preview.unassigned.length;
+  const unassignedCount = preview.unassigned.filter((e) => !e.excluded).length;
   const badgeClass = unassignedCount > 0 ? 'unassigned-badge-warn' : 'unassigned-badge-ok';
   headerRow.appendChild(el('span', `unassigned-badge mono ${badgeClass}`, `未割当 ${unassignedCount}件`));
-  headerRow.appendChild(el('span', undefined, '未割当の行はクライアント→案件の順にプルダウンで割り当ててください。'));
+  headerRow.appendChild(el('span', undefined, '未割当の行はクライアント→案件の順にプルダウンで割り当ててください。集計しない予定は「対象外」にチェックしてください。'));
   wrap.appendChild(headerRow);
 
   const table = el('div', 'preview-table');
@@ -1363,6 +1363,7 @@ function renderImportPreview(preview: ImportResult): HTMLElement {
   tableHeader.appendChild(el('span', undefined, 'クライアント'));
   tableHeader.appendChild(el('span', undefined, '案件'));
   tableHeader.appendChild(el('span', undefined, '今後'));
+  tableHeader.appendChild(el('span', undefined, '対象外'));
   table.appendChild(tableHeader);
 
   const allEvents = [...preview.assigned, ...preview.unassigned];
@@ -1399,7 +1400,11 @@ function renderImportPreview(preview: ImportResult): HTMLElement {
 
 function renderPreviewRow(event: ImportPreviewEvent): HTMLElement {
   const isUnassigned = event.projectId === null;
-  const row = el('div', 'preview-row' + (isUnassigned ? ' unassigned' : ''));
+  const isExcluded = event.excluded;
+  const row = el(
+    'div',
+    'preview-row' + (isUnassigned && !isExcluded ? ' unassigned' : '') + (isExcluded ? ' excluded' : ''),
+  );
   row.appendChild(el('span', 'preview-subject', event.subject));
   row.appendChild(el('span', 'mono', event.datetimeLabel));
   row.appendChild(el('span', 'mono cell-right', `${event.hours.toFixed(1)}h`));
@@ -1421,6 +1426,7 @@ function renderPreviewRow(event: ImportPreviewEvent): HTMLElement {
     clientSelect.appendChild(option);
   }
   clientSelect.value = selectedClient;
+  clientSelect.disabled = isExcluded;
   clientSelect.addEventListener('change', () => {
     state.clientDraft[event.key] = clientSelect.value;
     if (event.projectId && currentProject && currentProject.client !== clientSelect.value) {
@@ -1446,7 +1452,7 @@ function renderPreviewRow(event: ImportPreviewEvent): HTMLElement {
     projectSelect.appendChild(option);
   }
   projectSelect.value = event.projectId && clientProjects.some((p) => p.id === event.projectId) ? event.projectId : '';
-  projectSelect.disabled = !selectedClient;
+  projectSelect.disabled = isExcluded || !selectedClient;
   projectSelect.addEventListener('change', () => {
     if (projectSelect.value) {
       assignPreviewEvent(event.key, projectSelect.value);
@@ -1456,24 +1462,39 @@ function renderPreviewRow(event: ImportPreviewEvent): HTMLElement {
   });
   assignCell.appendChild(projectSelect);
 
-  if (event.auto) {
-    assignCell.appendChild(el('span', 'auto-tag', '自動'));
-  }
-
   row.appendChild(assignCell);
 
   const learnCell = el('div', 'learn-cell');
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.title = '今後この件名をこの案件へ割り当てる';
-  checkbox.checked = !!state.learnFlags[event.key];
-  checkbox.addEventListener('change', () => {
-    state.learnFlags[event.key] = checkbox.checked;
+  const learnCheckbox = document.createElement('input');
+  learnCheckbox.type = 'checkbox';
+  learnCheckbox.title = '今後この件名をこの案件へ割り当てる';
+  learnCheckbox.checked = !!state.learnFlags[event.key];
+  learnCheckbox.disabled = isExcluded;
+  learnCheckbox.addEventListener('change', () => {
+    state.learnFlags[event.key] = learnCheckbox.checked;
   });
-  learnCell.appendChild(checkbox);
+  learnCell.appendChild(learnCheckbox);
   row.appendChild(learnCell);
 
+  const excludeCell = el('div', 'learn-cell');
+  const excludeCheckbox = document.createElement('input');
+  excludeCheckbox.type = 'checkbox';
+  excludeCheckbox.title = 'この予定は集計対象外にする';
+  excludeCheckbox.checked = isExcluded;
+  excludeCheckbox.addEventListener('change', () => toggleExcludePreviewEvent(event.key));
+  excludeCell.appendChild(excludeCheckbox);
+  row.appendChild(excludeCell);
+
   return row;
+}
+
+function toggleExcludePreviewEvent(eventKey: string): void {
+  if (!state.importPreview) return;
+  const found = findPreviewEvent(eventKey);
+  if (!found) return;
+  const list = state.importPreview[found.list];
+  list[found.index] = { ...list[found.index], excluded: !list[found.index].excluded };
+  render();
 }
 
 function findPreviewEvent(eventKey: string): { list: 'assigned' | 'unassigned'; index: number } | undefined {
@@ -1515,8 +1536,9 @@ function unassignPreviewEvent(eventKey: string): void {
 
 function renderImportConfirm(preview: ImportResult): HTMLElement {
   const wrap = el('div', 'confirm-summary');
-  const eventCount = preview.assigned.length;
-  const hoursSum = preview.assigned.reduce((sum, e) => sum + e.hours, 0);
+  const countedEvents = preview.assigned.filter((e) => !e.excluded);
+  const eventCount = countedEvents.length;
+  const hoursSum = countedEvents.reduce((sum, e) => sum + e.hours, 0);
 
   wrap.appendChild(el('div', 'placeholder-title', '取り込み内容の確認'));
   wrap.appendChild(
@@ -1554,7 +1576,7 @@ function renderImportConfirm(preview: ImportResult): HTMLElement {
 function confirmImport(preview: ImportResult): void {
   const byProject = new Map<string, number>();
   for (const event of preview.assigned) {
-    if (!event.projectId) continue;
+    if (!event.projectId || event.excluded) continue;
     byProject.set(event.projectId, (byProject.get(event.projectId) ?? 0) + event.hours);
   }
 

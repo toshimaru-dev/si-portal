@@ -865,7 +865,7 @@ body {
 
 .preview-table-header {
   display: grid;
-  grid-template-columns: 1fr 130px 70px 140px 220px 50px;
+  grid-template-columns: 1fr 130px 70px 140px 220px 50px 60px;
   padding: 10px 14px;
   background: var(--vscode-editor-background);
   border-bottom: 1px solid var(--vscode-widget-border, #333);
@@ -875,7 +875,7 @@ body {
 
 .preview-row {
   display: grid;
-  grid-template-columns: 1fr 130px 70px 140px 220px 50px;
+  grid-template-columns: 1fr 130px 70px 140px 220px 50px 60px;
   padding: 11px 14px;
   border-bottom: 1px solid var(--vscode-panel-border, #2d2d30);
   align-items: center;
@@ -883,6 +883,10 @@ body {
 
 .preview-row.unassigned {
   background: color-mix(in srgb, var(--vscode-charts-orange, #e0a458) 7%, transparent);
+}
+
+.preview-row.excluded {
+  opacity: 0.5;
 }
 
 .preview-subject {
@@ -902,14 +906,6 @@ body {
   font-size: 11px;
   font-family: inherit;
   width: 100%;
-}
-
-.auto-tag {
-  font-size: 9px;
-  color: var(--vscode-descriptionForeground);
-  border: 1px solid var(--vscode-widget-border, #3a3a3a);
-  border-radius: 3px;
-  padding: 0 4px;
 }
 
 .assign-options {
@@ -1315,6 +1311,6 @@ body {
 
   .preview-table-header,
   .preview-row {
-    min-width: 670px;
+    min-width: 720px;
   }
 }
