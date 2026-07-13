@@ -1,7 +1,9 @@
 import { HostToWebviewMessage, WebviewToHostMessage } from '../protocol';
 import {
+  DailyHoursRow,
   Goal,
   GoalsFile,
+  HoursDailyFile,
   HoursFile,
   HoursRow,
   Phase,
@@ -43,6 +45,7 @@ type PendingDelete =
 interface State extends UiState {
   projects: ProjectsFile | undefined;
   hours: HoursFile | undefined;
+  hoursDaily: HoursDailyFile | undefined;
   goals: GoalsFile | undefined;
   errorMessage: string | undefined;
   showManualForm: boolean;
@@ -54,10 +57,18 @@ interface State extends UiState {
   showAddPhaseForm: boolean;
   addTaskFormPhaseId: string | undefined;
   pendingDelete: PendingDelete | undefined;
+  selectedCalendarDate: string | undefined;
+  manualFormClient: string;
 }
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
+}
+
+function shiftMonth(yearMonth: string, delta: number): string {
+  const [yearText, monthText] = yearMonth.split('-');
+  const date = new Date(Number(yearText), Number(monthText) - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 const persisted = (vscode.getState() as Partial<UiState> | undefined) ?? {};
@@ -71,6 +82,7 @@ const state: State = {
   goalCategoryFilter: persisted.goalCategoryFilter ?? 'all',
   projects: undefined,
   hours: undefined,
+  hoursDaily: undefined,
   goals: undefined,
   errorMessage: undefined,
   showManualForm: false,
@@ -82,6 +94,8 @@ const state: State = {
   showAddPhaseForm: false,
   addTaskFormPhaseId: undefined,
   pendingDelete: undefined,
+  selectedCalendarDate: undefined,
+  manualFormClient: '',
 };
 
 function persistUiState(): void {
@@ -489,10 +503,8 @@ function renderProjectsScreen(): HTMLElement {
 
   const selected = filtered.find((p) => p.id === state.selectedProjectId);
   if (selected) {
-    const detail = el('div', 'project-detail');
-    detail.appendChild(renderProjectInfoCard(selected));
-    detail.appendChild(renderKanban(selected));
-    layout.appendChild(detail);
+    layout.appendChild(renderKanban(selected));
+    layout.appendChild(renderProjectInfoCard(selected));
   } else {
     layout.appendChild(renderPlaceholder('該当する案件がありません', 'フィルタ条件を変更してください。'));
   }
@@ -1158,18 +1170,35 @@ function renderMonthlyScreen(): HTMLElement {
   const toolbar = el('div', 'monthly-toolbar');
   const monthPicker = el('div', 'month-picker');
   monthPicker.appendChild(el('span', 'month-picker-label', '対象月'));
+
+  const goToMonth = (yearMonth: string): void => {
+    state.hoursMonth = yearMonth;
+    state.selectedCalendarDate = undefined;
+    persistUiState();
+    render();
+  };
+
+  const prevButton = el('button', 'month-nav-button', '◀');
+  prevButton.title = '前月';
+  prevButton.addEventListener('click', () => goToMonth(shiftMonth(state.hoursMonth, -1)));
+  monthPicker.appendChild(prevButton);
+
   const monthInput = document.createElement('input');
   monthInput.type = 'month';
   monthInput.className = 'month-input';
   monthInput.value = state.hoursMonth;
   monthInput.addEventListener('change', () => {
     if (monthInput.value) {
-      state.hoursMonth = monthInput.value;
-      persistUiState();
-      render();
+      goToMonth(monthInput.value);
     }
   });
   monthPicker.appendChild(monthInput);
+
+  const nextButton = el('button', 'month-nav-button', '▶');
+  nextButton.title = '翌月';
+  nextButton.addEventListener('click', () => goToMonth(shiftMonth(state.hoursMonth, 1)));
+  monthPicker.appendChild(nextButton);
+
   toolbar.appendChild(monthPicker);
 
   if (state.importStep === 0) {
@@ -1183,6 +1212,7 @@ function renderMonthlyScreen(): HTMLElement {
     const manualButton = el('button', 'button-secondary', '手入力');
     manualButton.addEventListener('click', () => {
       state.showManualForm = !state.showManualForm;
+      state.manualFormClient = '';
       render();
     });
     toolbar.appendChild(manualButton);
@@ -1221,17 +1251,131 @@ function renderMonthlyNormalView(): HTMLElement {
   }
   layout.appendChild(summary);
 
-  layout.appendChild(renderHoursDetailTable(rows, total));
+  appendCalendarSection(layout);
+
+  layout.appendChild(renderHoursDetailTable(mergeHoursRowsByProject(rows), total));
   return layout;
 }
 
-function renderHoursDetailTable(rows: HoursRow[], total: number): HTMLElement {
+interface MergedHoursRow {
+  projectId: string;
+  projectName: string;
+  hours: number;
+  outlookHours: number;
+  manualHours: number;
+}
+
+function mergeHoursRowsByProject(rows: HoursRow[]): MergedHoursRow[] {
+  const byProject = new Map<string, MergedHoursRow>();
+  for (const row of rows) {
+    const existing = byProject.get(row.projectId);
+    const merged = existing ?? { projectId: row.projectId, projectName: row.projectName, hours: 0, outlookHours: 0, manualHours: 0 };
+    merged.hours += row.hours;
+    if (row.source === 'outlook') {
+      merged.outlookHours += row.hours;
+    } else {
+      merged.manualHours += row.hours;
+    }
+    byProject.set(row.projectId, merged);
+  }
+  return [...byProject.values()].sort((a, b) => b.hours - a.hours);
+}
+
+const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'];
+
+function dailyRowsByDate(): Map<string, DailyHoursRow[]> {
+  const map = new Map<string, DailyHoursRow[]>();
+  const rows = (state.hoursDaily?.rows ?? []).filter((r) => r.date.startsWith(state.hoursMonth));
+  for (const row of rows) {
+    const list = map.get(row.date);
+    if (list) {
+      list.push(row);
+    } else {
+      map.set(row.date, [row]);
+    }
+  }
+  return map;
+}
+
+function appendCalendarSection(layout: HTMLElement): void {
+  const byDate = dailyRowsByDate();
+
+  const [yearText, monthText] = state.hoursMonth.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const firstDay = new Date(year, month - 1, 1);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const startWeekday = firstDay.getDay();
+
+  const calendarCard = el('div', 'card');
+  calendarCard.appendChild(el('div', 'section-label', `${state.hoursMonth} のスケジュール`));
+
+  const grid = el('div', 'calendar-grid');
+  for (const label of WEEKDAY_LABELS) {
+    grid.appendChild(el('div', 'calendar-weekday', label));
+  }
+  for (let i = 0; i < startWeekday; i++) {
+    grid.appendChild(el('div', 'calendar-cell calendar-cell-empty'));
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateKey = `${state.hoursMonth}-${String(day).padStart(2, '0')}`;
+    const dayRows = byDate.get(dateKey) ?? [];
+    const dayTotal = dayRows.reduce((sum, r) => sum + r.hours, 0);
+
+    const cell = el('div', 'calendar-cell');
+    if (dayRows.length > 0) cell.classList.add('calendar-cell-has-data');
+    if (state.selectedCalendarDate === dateKey) cell.classList.add('calendar-cell-selected');
+    cell.appendChild(el('div', 'calendar-cell-date', String(day)));
+    if (dayRows.length > 0) {
+      cell.appendChild(el('div', 'calendar-cell-hours mono', `${dayTotal.toFixed(1)}h`));
+    }
+    cell.addEventListener('click', () => {
+      state.selectedCalendarDate = state.selectedCalendarDate === dateKey ? undefined : dateKey;
+      render();
+    });
+    grid.appendChild(cell);
+  }
+  calendarCard.appendChild(grid);
+  if (byDate.size === 0) {
+    calendarCard.appendChild(el('div', 'empty-state', 'この月のOutlook取り込みデータはありません。'));
+  }
+  layout.appendChild(calendarCard);
+
+  if (state.selectedCalendarDate) {
+    layout.appendChild(renderCalendarDayDetail(state.selectedCalendarDate, byDate.get(state.selectedCalendarDate) ?? []));
+  }
+}
+
+function renderCalendarDayDetail(dateKey: string, rows: DailyHoursRow[]): HTMLElement {
+  const card = el('div', 'card');
+  card.appendChild(el('div', 'section-label', `${dateKey} の予定`));
+  if (rows.length === 0) {
+    card.appendChild(el('div', 'empty-state', 'この日のデータはありません。'));
+    return card;
+  }
+  const table = el('div', 'hours-table');
+  const headerRow = el('div', 'calendar-detail-row hours-table-header');
+  headerRow.appendChild(el('span', undefined, '件名'));
+  headerRow.appendChild(el('span', undefined, '案件名'));
+  headerRow.appendChild(el('span', 'cell-right', '工数'));
+  table.appendChild(headerRow);
+  for (const row of rows) {
+    const rowEl = el('div', 'calendar-detail-row');
+    rowEl.appendChild(el('span', undefined, row.subject));
+    rowEl.appendChild(el('span', undefined, row.projectName));
+    rowEl.appendChild(el('span', 'mono cell-right', `${row.hours.toFixed(2)}h`));
+    table.appendChild(rowEl);
+  }
+  card.appendChild(table);
+  return card;
+}
+
+function renderHoursDetailTable(rows: MergedHoursRow[], total: number): HTMLElement {
   const table = el('div', 'hours-table');
   const headerRow = el('div', 'hours-table-row hours-table-header');
   headerRow.appendChild(el('span', undefined, '案件名'));
   headerRow.appendChild(el('span', undefined, '案件コード'));
   headerRow.appendChild(el('span', 'cell-right', '工数'));
-  headerRow.appendChild(el('span', undefined, 'source'));
   headerRow.appendChild(el('span'));
   table.appendChild(headerRow);
 
@@ -1252,13 +1396,12 @@ function renderHoursDetailTable(rows: HoursRow[], total: number): HTMLElement {
     totalValue.style.fontWeight = '600';
     totalRow.appendChild(totalValue);
     totalRow.appendChild(el('span'));
-    totalRow.appendChild(el('span'));
     table.appendChild(totalRow);
   }
   return table;
 }
 
-function renderHoursDetailRow(row: HoursRow): HTMLElement {
+function renderHoursDetailRow(row: MergedHoursRow): HTMLElement {
   const rowEl = el('div', 'hours-table-row');
   rowEl.appendChild(el('span', undefined, row.projectName));
   rowEl.appendChild(el('span', 'mono', row.projectId));
@@ -1275,36 +1418,41 @@ function renderHoursDetailRow(row: HoursRow): HTMLElement {
       hoursInput.value = String(row.hours);
       return;
     }
-    updateHoursRow(row, { hours: value });
+    setProjectHours(row, value);
   });
   rowEl.appendChild(hoursInput);
 
-  const sourceCell = el('span');
-  sourceCell.appendChild(el('span', `badge-source badge-source-${row.source}`, row.source));
-  rowEl.appendChild(sourceCell);
-
   const deleteIcon = el('button', 'delete-icon', '×');
-  deleteIcon.title = 'この行を削除';
-  deleteIcon.addEventListener('click', () => deleteHoursRow(row));
+  deleteIcon.title = 'この案件の今月の工数を削除';
+  deleteIcon.addEventListener('click', () => deleteProjectHours(row.projectId));
   rowEl.appendChild(deleteIcon);
 
   return rowEl;
 }
 
-function updateHoursRow(target: HoursRow, patch: Partial<HoursRow>): void {
-  if (!state.hours) return;
-  const idx = state.hours.rows.indexOf(target);
-  if (idx === -1) return;
-  const nextRows = [...state.hours.rows];
-  nextRows[idx] = { ...nextRows[idx], ...patch };
-  state.hours = { rows: nextRows };
+function setProjectHours(row: MergedHoursRow, newTotal: number): void {
+  const manualHours = Number((Math.max(0, newTotal - row.outlookHours)).toFixed(2));
+  const others = (state.hours?.rows ?? []).filter(
+    (r) => !(r.yearMonth === state.hoursMonth && r.projectId === row.projectId && r.source === 'manual'),
+  );
+  const manualRow: HoursRow = {
+    yearMonth: state.hoursMonth,
+    projectId: row.projectId,
+    projectName: row.projectName,
+    hours: manualHours,
+    source: 'manual',
+    note: '',
+  };
+  state.hours = { rows: manualHours > 0 ? [...others, manualRow] : others };
   vscode.postMessage({ type: 'save', domain: 'hours', payload: state.hours });
   render();
 }
 
-function deleteHoursRow(target: HoursRow): void {
+function deleteProjectHours(projectId: string): void {
   if (!state.hours) return;
-  state.hours = { rows: state.hours.rows.filter((r) => r !== target) };
+  state.hours = {
+    rows: state.hours.rows.filter((r) => !(r.yearMonth === state.hoursMonth && r.projectId === projectId)),
+  };
   vscode.postMessage({ type: 'save', domain: 'hours', payload: state.hours });
   render();
 }
@@ -1322,13 +1470,36 @@ function renderManualForm(): HTMLElement {
   const form = document.createElement('form');
   form.className = 'manual-form-row';
 
-  const select = document.createElement('select');
-  for (const p of projects) {
+  const clientSelect = document.createElement('select');
+  const clientPlaceholder = document.createElement('option');
+  clientPlaceholder.value = '';
+  clientPlaceholder.textContent = 'クライアント';
+  clientSelect.appendChild(clientPlaceholder);
+  for (const client of distinctClients()) {
+    const option = document.createElement('option');
+    option.value = client;
+    option.textContent = client;
+    clientSelect.appendChild(option);
+  }
+  clientSelect.value = state.manualFormClient;
+  clientSelect.addEventListener('change', () => {
+    state.manualFormClient = clientSelect.value;
+    render();
+  });
+
+  const projectSelect = document.createElement('select');
+  const clientProjects = projects.filter((p) => p.client.trim() === state.manualFormClient);
+  const projectPlaceholder = document.createElement('option');
+  projectPlaceholder.value = '';
+  projectPlaceholder.textContent = '選択してください';
+  projectSelect.appendChild(projectPlaceholder);
+  for (const p of clientProjects) {
     const option = document.createElement('option');
     option.value = p.id;
     option.textContent = p.name;
-    select.appendChild(option);
+    projectSelect.appendChild(option);
   }
+  projectSelect.disabled = !state.manualFormClient;
 
   const hoursInput = document.createElement('input');
   hoursInput.type = 'number';
@@ -1348,16 +1519,19 @@ function renderManualForm(): HTMLElement {
   submitButton.className = 'button-primary';
   submitButton.textContent = '追加';
 
-  form.appendChild(select);
+  form.appendChild(clientSelect);
+  form.appendChild(projectSelect);
   form.appendChild(hoursInput);
   form.appendChild(noteInput);
   form.appendChild(submitButton);
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (!projectSelect.value) return;
     const hours = Number(hoursInput.value);
     if (!Number.isFinite(hours) || hours <= 0) return;
-    upsertManualRow(select.value, hours, noteInput.value.trim());
+    upsertManualRow(projectSelect.value, hours, noteInput.value.trim());
+    state.manualFormClient = '';
   });
 
   wrap.appendChild(form);
@@ -1719,6 +1893,23 @@ function confirmImport(preview: ImportResult): void {
   );
   state.hours = { rows: [...keptRows, ...newOutlookRows] };
   vscode.postMessage({ type: 'save', domain: 'hours', payload: state.hours });
+
+  const newDailyRows: DailyHoursRow[] = preview.assigned
+    .filter((event) => event.projectId && !event.excluded)
+    .map((event) => {
+      const project = (state.projects?.projects ?? []).find((p) => p.id === event.projectId);
+      return {
+        date: event.date,
+        projectId: event.projectId as string,
+        projectName: project?.name ?? (event.projectId as string),
+        hours: event.hours,
+        subject: event.subject,
+      };
+    });
+  const keptDailyRows = (state.hoursDaily?.rows ?? []).filter((r) => !r.date.startsWith(state.hoursMonth));
+  state.hoursDaily = { rows: [...keptDailyRows, ...newDailyRows] };
+  vscode.postMessage({ type: 'save', domain: 'hoursDaily', payload: state.hoursDaily });
+
   closeImport();
 }
 
@@ -1910,6 +2101,10 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
     state.hours = message.payload;
     state.errorMessage = undefined;
     render();
+  } else if (message.type === 'data' && message.domain === 'hoursDaily') {
+    state.hoursDaily = message.payload;
+    state.errorMessage = undefined;
+    render();
   } else if (message.type === 'data' && message.domain === 'goals') {
     state.goals = message.payload;
     state.errorMessage = undefined;
@@ -1928,11 +2123,12 @@ window.addEventListener('message', (event: MessageEvent<HostToWebviewMessage>) =
   }
 });
 
-function requestData(domain: 'projects' | 'hours' | 'goals'): void {
+function requestData(domain: 'projects' | 'hours' | 'hoursDaily' | 'goals'): void {
   vscode.postMessage({ type: 'requestData', domain });
 }
 
 render();
 requestData('projects');
 requestData('hours');
+requestData('hoursDaily');
 requestData('goals');

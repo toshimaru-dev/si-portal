@@ -4,6 +4,7 @@ import { HoursMapping } from './types';
 export interface ImportPreviewEvent {
   key: string;
   subject: string;
+  date: string;
   datetimeLabel: string;
   hours: number;
   projectId: string | null;
@@ -69,6 +70,11 @@ function formatDateTimeLabel(date: Date): string {
   return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function formatDateKey(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function roundHours(rawHours: number): number {
   return Number((Math.round(rawHours / ROUND_UNIT) * ROUND_UNIT).toFixed(2));
 }
@@ -118,6 +124,7 @@ export function parseOutlookCsv(csvText: string, mapping: HoursMapping): ImportR
     const event: ImportPreviewEvent = {
       key: `evt-${index}`,
       subject,
+      date: formatDateKey(start),
       datetimeLabel: formatDateTimeLabel(start),
       hours: roundHours(rawHours),
       projectId,

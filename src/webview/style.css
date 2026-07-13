@@ -250,7 +250,7 @@ body {
 
 .badge-todo {
   background: var(--vscode-badge-background, #2d2d30);
-  color: var(--vscode-descriptionForeground, #8a8a8a);
+  color: var(--vscode-badge-foreground, #cccccc);
 }
 
 .badge-doing {
@@ -285,7 +285,7 @@ body {
 /* Projects screen: layout */
 .projects-layout {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px 1fr 320px;
   gap: 16px;
   align-items: start;
 }
@@ -343,6 +343,7 @@ body {
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 1px var(--vscode-widget-border, rgba(0, 0, 0, 0.15));
 }
 
 .project-dot-active {
@@ -397,15 +398,9 @@ body {
   color: var(--vscode-foreground);
 }
 
-.project-detail {
+.project-info-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-
-.project-info-card {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
 
@@ -601,6 +596,21 @@ body {
   color: var(--vscode-input-foreground, var(--vscode-foreground));
 }
 
+.month-nav-button {
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.month-nav-button:hover {
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-foreground);
+}
+
 .button-primary {
   background: var(--vscode-button-background);
   border: 1px solid var(--vscode-button-border, var(--vscode-button-background));
@@ -660,7 +670,7 @@ body {
 
 .hours-table-row {
   display: grid;
-  grid-template-columns: 1fr 90px 90px 70px 28px;
+  grid-template-columns: 1fr 90px 90px 28px;
   gap: 8px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--vscode-panel-border, #2d2d30);
@@ -696,21 +706,60 @@ body {
   text-align: right;
 }
 
-.badge-source {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 9px;
-  padding: 1px 6px;
-  border-radius: 4px;
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
 }
 
-.badge-source-outlook {
-  background: color-mix(in srgb, var(--vscode-charts-blue, #4a9eff) 14%, transparent);
+.calendar-weekday {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.calendar-cell {
+  min-height: 64px;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, #333));
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.calendar-cell-empty {
+  border: none;
+  cursor: default;
+}
+
+.calendar-cell-has-data {
+  background: color-mix(in srgb, var(--vscode-charts-blue, #4a9eff) 8%, transparent);
+  border-color: color-mix(in srgb, var(--vscode-charts-blue, #4a9eff) 40%, transparent);
+}
+
+.calendar-cell-selected {
+  border-color: var(--vscode-charts-blue, #4a9eff);
+  border-width: 2px;
+}
+
+.calendar-cell-date {
+  font-size: 12px;
+  color: var(--vscode-foreground);
+}
+
+.calendar-cell-hours {
+  font-size: 11px;
   color: var(--vscode-charts-blue, #4a9eff);
+  margin-top: 4px;
 }
 
-.badge-source-manual {
-  background: color-mix(in srgb, var(--vscode-charts-orange, #c9915e) 16%, transparent);
-  color: var(--vscode-charts-orange, #c9915e);
+.calendar-detail-row {
+  display: grid;
+  grid-template-columns: 1fr 160px 80px;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--vscode-panel-border, #2d2d30);
+  align-items: center;
 }
 
 .breakdown-row {

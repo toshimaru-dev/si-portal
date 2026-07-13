@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ensureGoalsFileExists, readGoals, resolveGoalsUri, writeGoals } from './data/goals';
 import { appendMappingRule, readHours, readMapping, writeHours } from './data/hours';
+import { readHoursDaily, writeHoursDaily } from './data/hoursDaily';
 import { parseOutlookCsv } from './data/outlookImport';
 import { ensureProjectsFileExists, readProjects, resolveDataDir, resolveProjectsUri, writeProjects } from './data/projects';
 import { HostToWebviewMessage, WebviewToHostMessage } from './protocol';
@@ -49,13 +50,14 @@ export class WorkPortalPanel {
       const dataDir = resolveDataDir();
       this.watchFile(dataDir, 'projects.md', 'projects');
       this.watchFile(dataDir, 'hours.csv', 'hours');
+      this.watchFile(dataDir, 'hours-daily.csv', 'hoursDaily');
       this.watchFile(dataDir, 'goals.md', 'goals');
     } catch {
       // ワークスペース未オープン時は監視をスキップ（requestData時にエラー通知する）
     }
   }
 
-  private watchFile(dataDir: vscode.Uri, fileName: string, domain: 'projects' | 'hours' | 'goals'): void {
+  private watchFile(dataDir: vscode.Uri, fileName: string, domain: 'projects' | 'hours' | 'hoursDaily' | 'goals'): void {
     const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(dataDir, fileName));
     const notify = () => this.post({ type: 'fileChanged', domain });
     watcher.onDidChange(notify, undefined, this.disposables);
@@ -74,6 +76,9 @@ export class WorkPortalPanel {
       } else if (message.type === 'save' && message.domain === 'hours') {
         await writeHours(message.payload);
         this.post({ type: 'saved', domain: 'hours' });
+      } else if (message.type === 'save' && message.domain === 'hoursDaily') {
+        await writeHoursDaily(message.payload);
+        this.post({ type: 'saved', domain: 'hoursDaily' });
       } else if (message.type === 'save' && message.domain === 'goals') {
         await writeGoals(message.payload);
         this.post({ type: 'saved', domain: 'goals' });
@@ -97,11 +102,13 @@ export class WorkPortalPanel {
     }
   }
 
-  private async sendData(domain: 'projects' | 'hours' | 'goals'): Promise<void> {
+  private async sendData(domain: 'projects' | 'hours' | 'hoursDaily' | 'goals'): Promise<void> {
     if (domain === 'projects') {
       this.post({ type: 'data', domain: 'projects', payload: await readProjects() });
     } else if (domain === 'hours') {
       this.post({ type: 'data', domain: 'hours', payload: await readHours() });
+    } else if (domain === 'hoursDaily') {
+      this.post({ type: 'data', domain: 'hoursDaily', payload: await readHoursDaily() });
     } else {
       this.post({ type: 'data', domain: 'goals', payload: await readGoals() });
     }

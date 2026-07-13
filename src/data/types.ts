@@ -53,6 +53,18 @@ export interface HoursFile {
   rows: HoursRow[];
 }
 
+export interface DailyHoursRow {
+  date: string;
+  projectId: string;
+  projectName: string;
+  hours: number;
+  subject: string;
+}
+
+export interface HoursDailyFile {
+  rows: DailyHoursRow[];
+}
+
 export interface MappingRule {
   keyword: string;
   projectId: string;

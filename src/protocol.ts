@@ -1,10 +1,11 @@
-import { GoalsFile, HoursFile, ProjectsFile } from './data/types';
+import { GoalsFile, HoursDailyFile, HoursFile, ProjectsFile } from './data/types';
 import { ImportResult } from './data/outlookImport';
 
 export type WebviewToHostMessage =
-  | { type: 'requestData'; domain: 'projects' | 'hours' | 'goals' }
+  | { type: 'requestData'; domain: 'projects' | 'hours' | 'hoursDaily' | 'goals' }
   | { type: 'save'; domain: 'projects'; payload: ProjectsFile }
   | { type: 'save'; domain: 'hours'; payload: HoursFile }
+  | { type: 'save'; domain: 'hoursDaily'; payload: HoursDailyFile }
   | { type: 'save'; domain: 'goals'; payload: GoalsFile }
   | { type: 'openFile'; domain: 'projects' | 'goals' }
   | { type: 'importOutlook'; payload: { csvText: string } }
@@ -13,8 +14,9 @@ export type WebviewToHostMessage =
 export type HostToWebviewMessage =
   | { type: 'data'; domain: 'projects'; payload: ProjectsFile }
   | { type: 'data'; domain: 'hours'; payload: HoursFile }
+  | { type: 'data'; domain: 'hoursDaily'; payload: HoursDailyFile }
   | { type: 'data'; domain: 'goals'; payload: GoalsFile }
   | { type: 'importResult'; payload: ImportResult }
-  | { type: 'fileChanged'; domain: 'projects' | 'hours' | 'goals' }
-  | { type: 'saved'; domain: 'projects' | 'hours' | 'goals' }
+  | { type: 'fileChanged'; domain: 'projects' | 'hours' | 'hoursDaily' | 'goals' }
+  | { type: 'saved'; domain: 'projects' | 'hours' | 'hoursDaily' | 'goals' }
   | { type: 'error'; message: string };
