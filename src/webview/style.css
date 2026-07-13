@@ -656,9 +656,18 @@ body {
 }
 
 .monthly-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.monthly-main-col,
+.monthly-side-col {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 
 .hours-table {
@@ -1294,7 +1303,8 @@ body {
 }
 
 .inline-form input,
-.inline-form select {
+.inline-form select,
+.inline-form textarea {
   background: var(--vscode-input-background);
   border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, #3a3a3a));
   color: var(--vscode-input-foreground, var(--vscode-foreground));
@@ -1306,13 +1316,19 @@ body {
   min-width: 80px;
 }
 
+.inline-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+
 .inline-form-actions {
   display: flex;
   gap: 6px;
   width: 100%;
 }
 
-.delete-icon {
+.delete-icon,
+.edit-icon {
   background: none;
   border: none;
   color: var(--vscode-descriptionForeground);
@@ -1325,6 +1341,10 @@ body {
 
 .delete-icon:hover {
   color: var(--vscode-errorForeground, #e0a458);
+}
+
+.edit-icon:hover {
+  color: var(--vscode-charts-blue, #4a9eff);
 }
 
 .confirm-bar {
@@ -1380,6 +1400,10 @@ body {
   }
 
   .projects-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-layout {
     grid-template-columns: 1fr;
   }
 

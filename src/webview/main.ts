@@ -56,6 +56,7 @@ interface State extends UiState {
   showAddProjectForm: boolean;
   showAddPhaseForm: boolean;
   addTaskFormPhaseId: string | undefined;
+  editingTaskId: string | undefined;
   pendingDelete: PendingDelete | undefined;
   selectedCalendarDate: string | undefined;
   manualFormClient: string;
@@ -93,6 +94,7 @@ const state: State = {
   showAddProjectForm: false,
   showAddPhaseForm: false,
   addTaskFormPhaseId: undefined,
+  editingTaskId: undefined,
   pendingDelete: undefined,
   selectedCalendarDate: undefined,
   manualFormClient: '',
@@ -951,12 +953,25 @@ function renderTaskCard(project: Project, phase: Phase, task: Task): HTMLElement
     );
   }
 
+  if (state.editingTaskId === task.id) {
+    return renderEditTaskForm(project, phase, task);
+  }
+
   const overdue = task.status !== 'done' && !!task.due && task.due < todayString();
   const card = el('div', 'task-card' + (overdue ? ' overdue' : ''));
 
   card.appendChild(el('span', 'task-card-title', task.title));
   card.appendChild(el('span', `badge badge-${task.status}`, task.status));
   card.appendChild(el('span', 'task-due mono' + (overdue ? ' overdue' : ''), task.due));
+
+  const editIcon = el('span', 'edit-icon', '✎');
+  editIcon.title = 'タスクを編集';
+  editIcon.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.editingTaskId = task.id;
+    render();
+  });
+  card.appendChild(editIcon);
 
   const deleteIcon = el('span', 'delete-icon', '×');
   deleteIcon.title = 'タスクを削除';
@@ -969,6 +984,56 @@ function renderTaskCard(project: Project, phase: Phase, task: Task): HTMLElement
 
   card.addEventListener('click', () => cycleTaskStatus(project.id, task.id));
   return card;
+}
+
+function renderEditTaskForm(project: Project, phase: Phase, task: Task): HTMLElement {
+  const form = document.createElement('form');
+  form.className = 'inline-form inline-form-vertical';
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.placeholder = 'タスク名';
+  titleInput.required = true;
+  titleInput.value = task.title;
+
+  const dueInput = document.createElement('input');
+  dueInput.type = 'date';
+  dueInput.value = task.due;
+
+  const noteTextarea = document.createElement('textarea');
+  noteTextarea.placeholder = '備考';
+  noteTextarea.rows = 2;
+  noteTextarea.value = task.note;
+
+  form.appendChild(titleInput);
+  form.appendChild(dueInput);
+  form.appendChild(noteTextarea);
+
+  const actions = el('div', 'inline-form-actions');
+  const submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.className = 'button-primary';
+  submitButton.textContent = '保存';
+  const cancelButton = document.createElement('button');
+  cancelButton.type = 'button';
+  cancelButton.className = 'button-secondary';
+  cancelButton.textContent = 'キャンセル';
+  cancelButton.addEventListener('click', () => {
+    state.editingTaskId = undefined;
+    render();
+  });
+  actions.appendChild(submitButton);
+  actions.appendChild(cancelButton);
+  form.appendChild(actions);
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = titleInput.value.trim();
+    if (!title) return;
+    updateTask(project.id, phase.id, task.id, { title, due: dueInput.value, note: noteTextarea.value.trim() });
+  });
+
+  return form;
 }
 
 function cycleTaskStatus(projectId: string, taskId: string): void {
@@ -1076,6 +1141,31 @@ function addTask(projectId: string, phaseId: string, title: string, due: string)
       return {
         ...p,
         phases: p.phases.map((ph) => (ph.id === phaseId ? { ...ph, tasks: [...ph.tasks, newTask] } : ph)),
+        updatedAt: now,
+      };
+    }),
+  });
+}
+
+function updateTask(
+  projectId: string,
+  phaseId: string,
+  taskId: string,
+  patch: Partial<Pick<Task, 'title' | 'due' | 'note'>>,
+): void {
+  if (!state.projects) return;
+  const now = new Date().toISOString();
+  state.editingTaskId = undefined;
+  saveProjects({
+    projects: state.projects.projects.map((p) => {
+      if (p.id !== projectId) return p;
+      return {
+        ...p,
+        phases: p.phases.map((ph) =>
+          ph.id === phaseId
+            ? { ...ph, tasks: ph.tasks.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) }
+            : ph,
+        ),
         updatedAt: now,
       };
     }),
@@ -1234,6 +1324,8 @@ function renderMonthlyScreen(): HTMLElement {
 
 function renderMonthlyNormalView(): HTMLElement {
   const layout = el('div', 'monthly-layout');
+  const mainCol = el('div', 'monthly-main-col');
+  const sideCol = el('div', 'monthly-side-col');
   const rows = (state.hours?.rows ?? []).filter((r) => r.yearMonth === state.hoursMonth);
   const total = rows.reduce((sum, r) => sum + r.hours, 0);
 
@@ -1249,11 +1341,13 @@ function renderMonthlyNormalView(): HTMLElement {
   } else {
     summary.appendChild(renderBreakdownList(aggregateByProject(rows), { showClient: true }));
   }
-  layout.appendChild(summary);
+  mainCol.appendChild(summary);
+  mainCol.appendChild(renderHoursDetailTable(mergeHoursRowsByProject(rows), total));
 
-  appendCalendarSection(layout);
+  appendCalendarSection(sideCol);
 
-  layout.appendChild(renderHoursDetailTable(mergeHoursRowsByProject(rows), total));
+  layout.appendChild(mainCol);
+  layout.appendChild(sideCol);
   return layout;
 }
 
